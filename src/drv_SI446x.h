@@ -20,7 +20,7 @@
 #include <Arduino.h>
 #include "hardware_config.h"
 #define MAX_PACKET_LENGTH 32
-#define PACKET_LENGTH 32 //0 - MAX_PACKET_LENGTH, 0: 动态长度 >0: 固定长度
+#define PACKET_LENGTH 0 //0 - MAX_PACKET_LENGTH, 0: 动态长度 >0: 固定长度
 
 /** SI4463 命令定义 */
 typedef enum

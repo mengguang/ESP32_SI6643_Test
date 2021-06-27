@@ -478,9 +478,11 @@ void SI446x_Reset_TxFifo(void)
 void SI446x_Send_Packet(uint8_t *pTxData, uint8_t Length, uint8_t Channel, uint8_t Condition)
 {
   uint8_t l_Cmd[5] = {0};
-  uint8_t tx_len = Length;
+  // uint8_t tx_len = Length;
 
   // SI446x_Reset_TxFifo(); //清空TX FIFO
+
+  SI446x_Set_Packet_Variable_Length(Length);
 
   SI_SET_CSN_LOW();
 
@@ -488,7 +490,7 @@ void SI446x_Send_Packet(uint8_t *pTxData, uint8_t Length, uint8_t Channel, uint8
 
 #if PACKET_LENGTH == 0 //动态数据长度
 
-  tx_len++;
+  // tx_len++;
   drv_spi_read_write_byte(Length);
 
 #endif
@@ -500,13 +502,11 @@ void SI446x_Send_Packet(uint8_t *pTxData, uint8_t Length, uint8_t Channel, uint8
 
   SI_SET_CSN_HIGH();
 
-  SI446x_Set_Packet_Variable_Length(tx_len - 1);
-
   l_Cmd[0] = START_TX;
   l_Cmd[1] = Channel;
   l_Cmd[2] = Condition;
   l_Cmd[3] = 0;
-  l_Cmd[4] = tx_len;
+  l_Cmd[4] = PACKET_LENGTH;
 
   SI446x_Write_Cmds(l_Cmd, 5); //发送数据包
   SI446x_Read_Response(l_Cmd, 1);

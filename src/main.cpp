@@ -110,8 +110,11 @@ void sendMessage()
   Serial.print("Sending message: ");
   Serial.println(message);
   uint32_t s = millis();
-  // SI446x_Send_Packet((uint8_t *)message, strlen(message) + 1, channel, 0);
+#if PACKET_LENGTH == 0
+  SI446x_Send_Packet((uint8_t *)message, strlen(message) + 1, channel, 0);
+#else
   SI446x_Send_Packet((uint8_t *)message, PACKET_LENGTH, channel, 0);
+#endif
   // while (true)
   // {
   //   delay(5);
