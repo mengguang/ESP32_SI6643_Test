@@ -18,12 +18,9 @@
 
 #include "radio_config_Si4463.h"
 #include <Arduino.h>
-
-#define SI_CSN_PIN 32
-#define SI_SDN_PIN 33
-#define SI_IRQ_PIN 34
-
-#define PACKET_LENGTH 0 //0-64, 0:动态长度 1:固定长度
+#include "hardware_config.h"
+#define MAX_PACKET_LENGTH 32
+#define PACKET_LENGTH 32 //0 - MAX_PACKET_LENGTH, 0: 动态长度 >0: 固定长度
 
 /** SI4463 命令定义 */
 typedef enum
@@ -419,9 +416,11 @@ void SI446x_Get_Fifo_Information(uint8_t *pReadData);
 void SI446x_Change_Status(uint8_t NextStatus);
 uint8_t SI446x_Get_Device_Status(void);
 void SI446x_Get_Modem_Status(uint8_t *pReadData);
+void SI446x_Get_Chip_Status(uint8_t *pReadData);
 void SI446x_Set_Power(uint8_t PowerLevel);
 void SI446x_Gpio_Init(void);
 void SI446x_Config_Init(void);
 void SI446x_Init(void);
+void SI446x_Set_Packet_Variable_Length(uint8_t length);
 
 #endif

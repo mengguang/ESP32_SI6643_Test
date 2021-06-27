@@ -15,6 +15,8 @@ SSD1306Spi display(OLED_RST_PIN, OLED_DC_PIN, OLED_CS_PIN);
 #define SPI_MOSI_PIN 27
 #define SPI_MISO_PIN 26
 
+const uint8_t channel = 6;
+
 void drawFontFaceDemo()
 {
   display.setTextAlignment(TEXT_ALIGN_LEFT);
@@ -78,7 +80,7 @@ void setup()
   display.display();
 
   Serial.begin(115200);
-  Serial.println("Hello World!");
+  Serial.println("\n\nHello World!");
 
   delay(1000);
   SI446x_Init();
@@ -87,75 +89,109 @@ void setup()
   SI446x_Get_Part_Informatoin(partInfo);
   dumpHex(partInfo, sizeof(partInfo));
   attachInterrupt(SI_IRQ_PIN, isr_si4463, FALLING);
-  SI446x_Start_Rx(6, 0, PACKET_LENGTH, 0, 0, 0);
+  SI446x_Start_Rx(channel, 0, PACKET_LENGTH, 0, 0, 0);
   randomSeed(millis());
 }
 
 char message[64];
-uint32_t n = 0;
+int n = 0;
 uint32_t lastSend = 0;
-uint32_t sendDelay = 1233;
-
-uint8_t g_SI4463Status[9] = {0};
-uint8_t g_SI4463RxBuffer[64] = {0};
+uint32_t sendDelay = 500;
+uint32_t lastRecv = 0;
+uint8_t statusBuffer[32] = {0};
+uint32_t now = millis();
 
 void sendMessage()
 {
-  snprintf(message, sizeof(message), "Hello %lu", n++);
+  n = n + n / 5 + 1;
+  n = n < 0 ? 1 : n;
+  memset(message, 0, sizeof(message));
+  snprintf(message, sizeof(message), "Hi %d", n);
   Serial.print("Sending message: ");
   Serial.println(message);
   uint32_t s = millis();
-  SI446x_Send_Packet((uint8_t *)message, strlen(message) + 1, 0, 0);
-  while (true)
-  {
-    SI446x_Interrupt_Status(g_SI4463Status);
-    if (g_SI4463Status[3] & (0x01 << 5))
-    {
-      break;
-    }
-  }
-  Serial.printf("send use %lu ms.\n", millis() - s);
-  SI446x_Start_Rx(6, 0, PACKET_LENGTH, 0, 0, 0);
+  // SI446x_Send_Packet((uint8_t *)message, strlen(message) + 1, channel, 0);
+  SI446x_Send_Packet((uint8_t *)message, PACKET_LENGTH, channel, 0);
+  // while (true)
+  // {
+  //   delay(5);
+  //   SI446x_Interrupt_Status(statusBuffer);
+  //   if (statusBuffer[3] & (0x01 << 5))
+  //   {
+  //     break;
+  //   }
+  // }
+  delay(50);
+  Serial.print("Sending message use time(ms): ");
+  Serial.println(millis() - s);
 }
 
 void loop()
 {
-  if (packet_received)
+
+  now = millis();
+  if (now > lastSend + sendDelay + random(500))
   {
-    packet_received = false;
-    SI446x_Interrupt_Status(g_SI4463Status);
-    // Serial.print("Interrupt_Status: ");
-    // dumpHex(g_SI4463Status, 9);
-    // SI446x_Get_Modem_Status(g_SI4463Status);
-    // Serial.print("Modem_Status: ");
-    // dumpHex(g_SI4463Status, 9);
-    // Serial.println(g_SI4463Status[4]);
-    // delay(100);
-    if (g_SI4463Status[3] & (0x01 << 4))
+    lastSend = now;
+    sendMessage();
+    SI446x_Start_Rx(channel, 0, PACKET_LENGTH, 0, 0, 0);
+  }
+
+  now = millis();
+  if (now > lastRecv + 10000)
+  {
+    // Serial.println("Reset Chip!");
+    // SI446x_Init();
+    // SI446x_Set_Packet_Variable_Length(MAX_PACKET_LENGTH);
+    // SI446x_Start_Rx(channel, 0, PACKET_LENGTH, 0, 0, 0);
+    // n = 0;
+    // lastRecv = now;
+  }
+
+  SI446x_Get_Chip_Status(statusBuffer);
+  // Serial.print("Chip_Status: ");
+  // dumpHex(statusBuffer, 4);
+  if (statusBuffer[2] & (0x01 << 3))
+  {
+    Serial.println("CMD_ERROR!");
+    SI446x_Start_Rx(channel, 0, PACKET_LENGTH, 0, 0, 0);
+  }
+
+  SI446x_Interrupt_Status(statusBuffer);
+  if (statusBuffer[3] & (0x01 << 4))
+  {
+    digitalWrite(led, HIGH);
+    lastRecv = millis();
+    memset(message, 0, sizeof(message));
+    uint8_t n = SI446x_Read_Packet((uint8_t *)message);
+    if (n == 0)
     {
-      digitalWrite(led, HIGH);
-      memset(g_SI4463RxBuffer, 0, sizeof(g_SI4463RxBuffer));
-      uint8_t n = SI446x_Read_Packet(g_SI4463RxBuffer);
-
-      (void)n;
-      Serial.print("Received message: ");
-      Serial.println((char *)g_SI4463RxBuffer);
-
-      SI446x_Get_Modem_Status(g_SI4463Status);
-      // dumpHex(g_SI4463Status, 9);
-      int8_t rssi = ((int8_t)g_SI4463Status[3]) / 2 - 130;
-      Serial.print("rssi: ");
-      Serial.println(rssi);
-
-      displayReceivedData((char *)g_SI4463RxBuffer, rssi, 0);
-
-      SI446x_Start_Rx(6, 0, PACKET_LENGTH, 0, 0, 0);
-      // uint8_t status = SI446x_Get_Device_Status();
-      // Serial.printf("status: %d\n", status);
-      delay(100);
-      digitalWrite(led, LOW);
-
-      // sendMessage();
+      Serial.print("Error: ");
+      Serial.println((const char *)message);
     }
+    else
+    {
+      // Serial.print("Received packet length: ");
+      // Serial.println(n);
+      Serial.print("Received message: ");
+      Serial.println((char *)message);
+    }
+
+    SI446x_Get_Modem_Status(statusBuffer);
+    // dumpHex(statusBuffer, 9);
+    int8_t rssi = ((int8_t)statusBuffer[3]) / 2 - 130;
+    Serial.print("rssi: ");
+    Serial.println(rssi);
+
+    displayReceivedData((char *)message, rssi, 0);
+
+    // SI446x_Start_Rx(channel, 0, PACKET_LENGTH, 0, 0, 0);
+    // sendMessage();
+
+    // delay(50);
+    SI446x_Start_Rx(channel, 0, PACKET_LENGTH, 0, 0, 0);
+
+    delay(100);
+    digitalWrite(led, LOW);
   }
 }
